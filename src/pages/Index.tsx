@@ -51,7 +51,14 @@ const Index = () => {
           OK금융 업무 점검
         </h1>
 
-        <ProgressHeader completed={completedCount} total={items.length} />
+        <ProgressHeader
+          completed={completedCount}
+          total={items.length}
+          categoryStats={[...new Set(items.map((i) => i.category))].map((cat) => {
+            const catItems = items.filter((i) => i.category === cat);
+            return { name: cat, completed: catItems.filter((i) => i.checked).length, total: catItems.length };
+          })}
+        />
 
         <FilterTabs current={filter} onChange={setFilter} />
 
