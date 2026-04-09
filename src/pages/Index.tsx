@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { ChecklistCard } from "@/components/ChecklistCard";
 import { ProgressHeader } from "@/components/ProgressHeader";
 import { FilterTabs } from "@/components/FilterTabs";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface CheckItem {
   id: string;
@@ -12,30 +13,41 @@ export interface CheckItem {
   memo: string;
 }
 
-const initialItems: CheckItem[] = [
-  { id: "1", category: "월간 점검", title: "고객정보 접근권한 확인", checked: false, memo: "" },
-  { id: "2", category: "월간 점검", title: "비밀번호 변경 여부", checked: false, memo: "" },
-  { id: "3", category: "월간 점검", title: "문서 보관 상태", checked: false, memo: "" },
-  { id: "4", category: "분기 점검", title: "시스템 로그 점검", checked: false, memo: "" },
-  { id: "5", category: "분기 점검", title: "외부감사 자료 준비", checked: false, memo: "" },
-  { id: "6", category: "분기 점검", title: "규정 변경사항 반영", checked: false, memo: "" },
-];
-
 type Filter = "전체" | "완료" | "미완료";
 
 const Index = () => {
-  const [items, setItems] = useState<CheckItem[]>(initialItems);
+  const [items, setItems] = useState<CheckItem[]>([]);
   const [filter, setFilter] = useState<Filter>("전체");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      const { data, error } = await supabase
+        .from("checklist_items")
+        .select("id, title, category, checked, memo")
+        .order("sort_order");
+      if (!error && data) {
+        setItems(data);
+      }
+      setLoading(false);
+    };
+    fetchItems();
+  }, []);
 
   const completedCount = items.filter((i) => i.checked).length;
 
-  const toggleCheck = (id: string) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, checked: !i.checked } : i)));
+  const toggleCheck = async (id: string) => {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    const newChecked = !item.checked;
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, checked: newChecked } : i)));
+    await supabase.from("checklist_items").update({ checked: newChecked }).eq("id", id);
   };
 
-  const updateMemo = (id: string, memo: string) => {
+  const updateMemo = async (id: string, memo: string) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, memo } : i)));
+    await supabase.from("checklist_items").update({ memo }).eq("id", id);
   };
 
   const filtered = items.filter((i) => {
@@ -45,6 +57,14 @@ const Index = () => {
   });
 
   const categories = [...new Set(filtered.map((i) => i.category))];
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">로딩 중...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
