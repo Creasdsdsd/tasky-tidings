@@ -6,9 +6,10 @@ interface Props {
   categories: string[];
   onAdded: () => void;
   userId: string;
+  onSave?: (title: string, category: string) => void;
 }
 
-export const AddItemForm = ({ categories, onAdded, userId }: Props) => {
+export const AddItemForm = ({ categories, onAdded, userId, onSave }: Props) => {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState(categories[0] ?? "");
@@ -17,7 +18,11 @@ export const AddItemForm = ({ categories, onAdded, userId }: Props) => {
   const handleSave = async () => {
     if (!title.trim() || !category) return;
     setSaving(true);
-    await supabase.from("checklist_items").insert({ title: title.trim(), category, user_id: userId });
+    if (onSave) {
+      onSave(title.trim(), category);
+    } else {
+      await supabase.from("checklist_items").insert({ title: title.trim(), category, user_id: userId });
+    }
     setTitle("");
     setSaving(false);
     setOpen(false);

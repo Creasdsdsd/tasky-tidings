@@ -20,6 +20,17 @@ export interface CheckItem {
 type Filter = "전체" | "완료" | "미완료";
 const ALL_CATEGORIES = ["월간 점검", "분기 점검"];
 
+const IS_LOCAL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
+const DEFAULT_ITEMS: CheckItem[] = [
+  { id: "local-1", title: "고객정보 접근권한 확인", category: "월간 점검", checked: false, memo: "" },
+  { id: "local-2", title: "비밀번호 변경 여부", category: "월간 점검", checked: false, memo: "" },
+  { id: "local-3", title: "문서 보관 상태", category: "월간 점검", checked: false, memo: "" },
+  { id: "local-4", title: "시스템 로그 점검", category: "분기 점검", checked: false, memo: "" },
+  { id: "local-5", title: "외부감사 자료 준비", category: "분기 점검", checked: false, memo: "" },
+  { id: "local-6", title: "규정 변경사항 반영", category: "분기 점검", checked: false, memo: "" },
+];
+
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<CheckItem[]>([]);
@@ -27,7 +38,22 @@ const Index = () => {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
+  // 로컬 모드: localStorage에서 로드
+  useEffect(() => {
+    if (!IS_LOCAL) return;
+    const saved = localStorage.getItem("checklist_items");
+    setItems(saved ? JSON.parse(saved) : DEFAULT_ITEMS);
+    setLoading(false);
+  }, []);
+
+  // 로컬 모드: items 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (!IS_LOCAL || loading) return;
+    localStorage.setItem("checklist_items", JSON.stringify(items));
+  }, [items, loading]);
+
   const fetchItems = useCallback(async () => {
+    if (IS_LOCAL) return;
     const { data } = await supabase
       .from("checklist_items")
       .select("id, title, category, checked, memo")
@@ -37,12 +63,13 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
+    if (IS_LOCAL) return;
     if (user) fetchItems();
     else { setItems([]); setLoading(false); }
   }, [user, fetchItems]);
 
   const seedDefaultItems = useCallback(async () => {
-    if (!user) return;
+    if (IS_LOCAL || !user) return;
     const { count } = await supabase
       .from("checklist_items")
       .select("id", { count: "exact", head: true });
@@ -61,6 +88,7 @@ const Index = () => {
   }, [user, fetchItems]);
 
   useEffect(() => {
+    if (IS_LOCAL) return;
     if (user) seedDefaultItems();
   }, [user, seedDefaultItems]);
 
@@ -69,19 +97,31 @@ const Index = () => {
     if (!item) return;
     const newChecked = !item.checked;
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, checked: newChecked } : i)));
-    await supabase.from("checklist_items").update({ checked: newChecked }).eq("id", id);
+    if (!IS_LOCAL) {
+      await supabase.from("checklist_items").update({ checked: newChecked }).eq("id", id);
+    }
   };
 
   const updateMemo = useCallback(async (id: string, memo: string) => {
+    if (IS_LOCAL) {
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, memo } : i)));
+      return;
+    }
     await supabase.from("checklist_items").update({ memo }).eq("id", id);
   }, []);
 
   const deleteItem = async (id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
-    await supabase.from("checklist_items").delete().eq("id", id);
+    if (!IS_LOCAL) {
+      await supabase.from("checklist_items").delete().eq("id", id);
+    }
   };
 
-  const handleItemAdded = () => fetchItems();
+  const handleLocalItemAdd = (title: string, category: string) => {
+    setItems((prev) => [...prev, { id: `local-${Date.now()}`, title, category, checked: false, memo: "" }]);
+  };
+
+  const handleItemAdded = () => { if (!IS_LOCAL) fetchItems(); };
 
   const completedCount = items.filter((i) => i.checked).length;
 
@@ -93,7 +133,7 @@ const Index = () => {
 
   const categories = [...new Set(filtered.map((i) => i.category))];
 
-  if (authLoading) {
+  if (!IS_LOCAL && authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">로딩 중...</p>
@@ -101,7 +141,7 @@ const Index = () => {
     );
   }
 
-  if (!user) return <LoginPage />;
+  if (!IS_LOCAL && !user) return <LoginPage />;
 
   return (
     <div className="min-h-screen bg-background">
@@ -123,7 +163,12 @@ const Index = () => {
 
         <FilterTabs current={filter} onChange={setFilter} />
 
-        <AddItemForm categories={ALL_CATEGORIES} onAdded={handleItemAdded} userId={user.id} />
+        <AddItemForm
+          categories={ALL_CATEGORIES}
+          onAdded={handleItemAdded}
+          userId={IS_LOCAL ? "local" : user!.id}
+          onSave={IS_LOCAL ? handleLocalItemAdd : undefined}
+        />
 
         {loading ? (
           <p className="mt-8 text-center text-muted-foreground">로딩 중...</p>

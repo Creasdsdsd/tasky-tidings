@@ -18,7 +18,7 @@ export const ProgressHeader = ({ completed, total, categoryStats }: Props) => {
         </div>
         <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-500"
+            className="h-full rounded-full bg-red-500 transition-all duration-500"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -37,7 +37,7 @@ export const ProgressHeader = ({ completed, total, categoryStats }: Props) => {
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
                 <div
-                  className="h-full rounded-full bg-accent transition-all duration-500"
+                  className="h-full rounded-full bg-red-500 transition-all duration-500"
                   style={{ width: `${catPct}%` }}
                 />
               </div>
