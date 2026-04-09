@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
 import { ChecklistCard } from "@/components/ChecklistCard";
 import { ProgressHeader } from "@/components/ProgressHeader";
 import { FilterTabs } from "@/components/FilterTabs";
+import { AddItemForm } from "@/components/AddItemForm";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface CheckItem {
@@ -15,25 +16,24 @@ export interface CheckItem {
 
 type Filter = "전체" | "완료" | "미완료";
 
+const ALL_CATEGORIES = ["월간 점검", "분기 점검"];
+
 const Index = () => {
   const [items, setItems] = useState<CheckItem[]>([]);
   const [filter, setFilter] = useState<Filter>("전체");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchItems = async () => {
-      const { data, error } = await supabase
-        .from("checklist_items")
-        .select("id, title, category, checked, memo")
-        .order("sort_order");
-      if (!error && data) {
-        setItems(data);
-      }
-      setLoading(false);
-    };
-    fetchItems();
+  const fetchItems = useCallback(async () => {
+    const { data } = await supabase
+      .from("checklist_items")
+      .select("id, title, category, checked, memo")
+      .order("sort_order");
+    if (data) setItems(data);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const completedCount = items.filter((i) => i.checked).length;
 
@@ -45,9 +45,13 @@ const Index = () => {
     await supabase.from("checklist_items").update({ checked: newChecked }).eq("id", id);
   };
 
-  const updateMemo = async (id: string, memo: string) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, memo } : i)));
+  const updateMemo = useCallback(async (id: string, memo: string) => {
     await supabase.from("checklist_items").update({ memo }).eq("id", id);
+  }, []);
+
+  const deleteItem = async (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    await supabase.from("checklist_items").delete().eq("id", id);
   };
 
   const filtered = items.filter((i) => {
@@ -84,6 +88,8 @@ const Index = () => {
 
         <FilterTabs current={filter} onChange={setFilter} />
 
+        <AddItemForm categories={ALL_CATEGORIES} onAdded={fetchItems} />
+
         {categories.map((cat) => (
           <div key={cat} className="mb-6">
             <button
@@ -105,6 +111,7 @@ const Index = () => {
                       item={item}
                       onToggle={toggleCheck}
                       onMemoChange={updateMemo}
+                      onDelete={deleteItem}
                     />
                   ))}
               </div>
