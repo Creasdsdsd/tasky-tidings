@@ -66,21 +66,29 @@ const Index = () => {
 
         {categories.map((cat) => (
           <div key={cat} className="mb-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {cat}
-            </h2>
-            <div className="space-y-3">
-              {filtered
-                .filter((i) => i.category === cat)
-                .map((item) => (
-                  <ChecklistCard
-                    key={item.id}
-                    item={item}
-                    onToggle={toggleCheck}
-                    onMemoChange={updateMemo}
-                  />
-                ))}
-            </div>
+            <button
+              onClick={() => setCollapsed((p) => ({ ...p, [cat]: !p[cat] }))}
+              className="mb-3 flex w-full items-center justify-between text-sm font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span>{cat}</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${collapsed[cat] ? "-rotate-90" : ""}`}
+              />
+            </button>
+            {!collapsed[cat] && (
+              <div className="space-y-3">
+                {filtered
+                  .filter((i) => i.category === cat)
+                  .map((item) => (
+                    <ChecklistCard
+                      key={item.id}
+                      item={item}
+                      onToggle={toggleCheck}
+                      onMemoChange={updateMemo}
+                    />
+                  ))}
+              </div>
+            )}
           </div>
         ))}
 
