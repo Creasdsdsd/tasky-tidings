@@ -4,6 +4,9 @@ import { ChecklistCard } from "@/components/ChecklistCard";
 import { ProgressHeader } from "@/components/ProgressHeader";
 import { FilterTabs } from "@/components/FilterTabs";
 import { AddItemForm } from "@/components/AddItemForm";
+import { UserHeader } from "@/components/UserHeader";
+import { LoginPage } from "@/components/LoginPage";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface CheckItem {
@@ -15,10 +18,10 @@ export interface CheckItem {
 }
 
 type Filter = "전체" | "완료" | "미완료";
-
 const ALL_CATEGORIES = ["월간 점검", "분기 점검"];
 
 const Index = () => {
+  const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<CheckItem[]>([]);
   const [filter, setFilter] = useState<Filter>("전체");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -33,9 +36,33 @@ const Index = () => {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+  useEffect(() => {
+    if (user) fetchItems();
+    else { setItems([]); setLoading(false); }
+  }, [user, fetchItems]);
 
-  const completedCount = items.filter((i) => i.checked).length;
+  const seedDefaultItems = useCallback(async () => {
+    if (!user) return;
+    const { count } = await supabase
+      .from("checklist_items")
+      .select("id", { count: "exact", head: true });
+    if (count === 0) {
+      const defaults = [
+        { title: "고객정보 접근권한 확인", category: "월간 점검", sort_order: 1, user_id: user.id },
+        { title: "비밀번호 변경 여부", category: "월간 점검", sort_order: 2, user_id: user.id },
+        { title: "문서 보관 상태", category: "월간 점검", sort_order: 3, user_id: user.id },
+        { title: "시스템 로그 점검", category: "분기 점검", sort_order: 4, user_id: user.id },
+        { title: "외부감사 자료 준비", category: "분기 점검", sort_order: 5, user_id: user.id },
+        { title: "규정 변경사항 반영", category: "분기 점검", sort_order: 6, user_id: user.id },
+      ];
+      await supabase.from("checklist_items").insert(defaults);
+      fetchItems();
+    }
+  }, [user, fetchItems]);
+
+  useEffect(() => {
+    if (user) seedDefaultItems();
+  }, [user, seedDefaultItems]);
 
   const toggleCheck = async (id: string) => {
     const item = items.find((i) => i.id === id);
@@ -54,6 +81,10 @@ const Index = () => {
     await supabase.from("checklist_items").delete().eq("id", id);
   };
 
+  const handleItemAdded = () => fetchItems();
+
+  const completedCount = items.filter((i) => i.checked).length;
+
   const filtered = items.filter((i) => {
     if (filter === "완료") return i.checked;
     if (filter === "미완료") return !i.checked;
@@ -62,7 +93,7 @@ const Index = () => {
 
   const categories = [...new Set(filtered.map((i) => i.category))];
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">로딩 중...</p>
@@ -70,12 +101,16 @@ const Index = () => {
     );
   }
 
+  if (!user) return <LoginPage />;
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-2xl px-4 py-8">
         <h1 className="mb-6 text-center text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           OK금융 업무 점검
         </h1>
+
+        <UserHeader />
 
         <ProgressHeader
           completed={completedCount}
@@ -88,39 +123,44 @@ const Index = () => {
 
         <FilterTabs current={filter} onChange={setFilter} />
 
-        <AddItemForm categories={ALL_CATEGORIES} onAdded={fetchItems} />
+        <AddItemForm categories={ALL_CATEGORIES} onAdded={handleItemAdded} userId={user.id} />
 
-        {categories.map((cat) => (
-          <div key={cat} className="mb-6">
-            <button
-              onClick={() => setCollapsed((p) => ({ ...p, [cat]: !p[cat] }))}
-              className="mb-3 flex w-full items-center justify-between text-sm font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span>{cat}</span>
-              <ChevronDown
-                className={`h-4 w-4 transition-transform duration-200 ${collapsed[cat] ? "-rotate-90" : ""}`}
-              />
-            </button>
-            {!collapsed[cat] && (
-              <div className="space-y-3">
-                {filtered
-                  .filter((i) => i.category === cat)
-                  .map((item) => (
-                    <ChecklistCard
-                      key={item.id}
-                      item={item}
-                      onToggle={toggleCheck}
-                      onMemoChange={updateMemo}
-                      onDelete={deleteItem}
-                    />
-                  ))}
+        {loading ? (
+          <p className="mt-8 text-center text-muted-foreground">로딩 중...</p>
+        ) : (
+          <>
+            {categories.map((cat) => (
+              <div key={cat} className="mb-6">
+                <button
+                  onClick={() => setCollapsed((p) => ({ ...p, [cat]: !p[cat] }))}
+                  className="mb-3 flex w-full items-center justify-between text-sm font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span>{cat}</span>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${collapsed[cat] ? "-rotate-90" : ""}`}
+                  />
+                </button>
+                {!collapsed[cat] && (
+                  <div className="space-y-3">
+                    {filtered
+                      .filter((i) => i.category === cat)
+                      .map((item) => (
+                        <ChecklistCard
+                          key={item.id}
+                          item={item}
+                          onToggle={toggleCheck}
+                          onMemoChange={updateMemo}
+                          onDelete={deleteItem}
+                        />
+                      ))}
+                  </div>
+                )}
               </div>
+            ))}
+            {filtered.length === 0 && (
+              <p className="mt-12 text-center text-muted-foreground">항목이 없습니다.</p>
             )}
-          </div>
-        ))}
-
-        {filtered.length === 0 && (
-          <p className="mt-12 text-center text-muted-foreground">항목이 없습니다.</p>
+          </>
         )}
       </div>
     </div>
