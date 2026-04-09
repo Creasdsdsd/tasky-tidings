@@ -26,6 +26,7 @@ type Filter = "전체" | "완료" | "미완료";
 const Index = () => {
   const [items, setItems] = useState<CheckItem[]>(initialItems);
   const [filter, setFilter] = useState<Filter>("전체");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const completedCount = items.filter((i) => i.checked).length;
 
