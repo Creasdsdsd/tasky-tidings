@@ -5,9 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 interface Props {
   categories: string[];
   onAdded: () => void;
+  userId: string;
 }
 
-export const AddItemForm = ({ categories, onAdded }: Props) => {
+export const AddItemForm = ({ categories, onAdded, userId }: Props) => {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState(categories[0] ?? "");
@@ -16,7 +17,7 @@ export const AddItemForm = ({ categories, onAdded }: Props) => {
   const handleSave = async () => {
     if (!title.trim() || !category) return;
     setSaving(true);
-    await supabase.from("checklist_items").insert({ title: title.trim(), category });
+    await supabase.from("checklist_items").insert({ title: title.trim(), category, user_id: userId });
     setTitle("");
     setSaving(false);
     setOpen(false);
